@@ -49,7 +49,7 @@ function Segment(x1, y1, x2, y2) {
     this.y2 = 0;
     this._k = 0;
     this._b = 0;
-    this.update(x1|0, y1|0, x2|0, y2|0);
+    this.update(x1 || 0, y1 || 0, x2 || 0, y2 || 0);
 
     /**
      * temporary, assigned by Scanline
@@ -91,7 +91,7 @@ Segment.prototype = {
         this.owner = null;
     },
 
-    update: function(x1, y1, x2, y2) {
+    update: function (x1, y1, x2, y2) {
         if (x1 < x2) {
             this.x1 = x1;
             this.y1 = y1;
@@ -112,13 +112,13 @@ Segment.prototype = {
      * intersects two horizontal segments
      * @param seg2 {Segment} another segment
      */
-    intersectDiagonal: function(seg2) {
-        if (Math.abs(this._k - this.seg2._k) < EPS) {
+    intersectDiagonal: function (seg2) {
+        if (this._k !== seg2._k) {
             return false;
         }
         var x = (seg2._b - this._b) / (this._k - seg2._k);
-        if (x < this.x1 + EPS || x > this.x2 - EPS ||
-            x < seg2.x1 + EPS || x > seg2.x2 - EPS) {
+        if (x <= this.x1 || x >= this.x2 ||
+            x <= seg2.x1 || x >= seg2.x2) {
             return false;
         }
         return x;
@@ -129,7 +129,8 @@ Segment.prototype = {
      * @param seg2
      */
     below: function (seg2) {
-        return seg2.x1 * this._k + this._b <= seg2.y1;
+        var y = seg2.x1 * this._k + this._b;
+        return y < seg2.y1 || (y == seg2.y1 && this._k < seg2._k);
     },
 
     /**
@@ -137,7 +138,7 @@ Segment.prototype = {
      * @param seg {Segment}
      * @returns {boolean}
      */
-    intersectVertical: function(seg) {
+    intersectVertical: function (seg) {
         return false;
     }
 };
@@ -153,7 +154,7 @@ function List() {
 }
 
 List.prototype = {
-    insert: function(where, elem) {
+    insert: function (where, elem) {
         if (where === null) {
             elem.next = this.head;
             this.head = elem;
@@ -161,6 +162,66 @@ List.prototype = {
             elem.next = where.next;
             where.next = elem;
         }
+    }
+};
+
+function Event(type, x) {
+    this.type = type;
+    this.x = x;
+};
+
+/**
+ * will be needed only for intersections
+ * @constructor
+ */
+function EventHeap() {
+    this.arr = [0];
+};
+
+EventHeap.prototype = {
+    push(event) {
+        var arr = this.arr;
+        var num = arr.length;
+        arr.push(event);
+        var par = num >> 1;
+        //lets go up
+        while (par >= 1 &&
+        (arr[par].x > event.x ||
+        arr[par].x === event.x && arr[par].type > event.type)) {
+            arr[num] = arr[par];
+            num = par;
+            par = num >> 1;
+        }
+        arr[num] = event;
+    },
+
+    pop() {
+        var arr = this.arr;
+        var res = arr[1];
+        arr[1] = arr[arr.length - 1];
+        arr.length--;
+        var num = 1;
+        //lets go down
+        while (num * 2 < arr.length) {
+            var min = num * 2;
+            var right = num * 2 + 1;
+            if (right < arr.length &&
+                (arr[right].x < arr[min].x ||
+                arr[right].x === arr[min].x && arr[right].type < arr[min].type)) {
+                min = right;
+            }
+            if (arr[num].x < arr[min].x ||
+                arr[num].x === arr[min].x && arr[num].type < arr[min].type) {
+                var t = arr[num];
+                arr[num] = arr[min];
+                arr[min] = t;
+                num = min;
+            } else {
+                break;
+            }
+        }
+
+        return res;
     }
 };
 
