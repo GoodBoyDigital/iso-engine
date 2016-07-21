@@ -53,22 +53,24 @@ Scanline.prototype = {
             var seg = event.seg;
             if (event.type === 2) {
                 //insert new segment
+                seg.alive = true;
                 var lb = list.lowerBound(seg);
                 if (lb !== null) {
                     var x = lb.intersect(seg);
                     if (x !== null) {
+                        //for now LETS JUST KILL ONE OF THEM WITH FIRE
                         this.heap.push(this._eventCreate(x, 1, lb));
-                        seg.djoin(lb);
                     }
                     lb.nextEdges.push(seg);
                 }
                 list.insertAfter(lb, seg);
-            } else if (event.type === 1) {
-                //TODO: may be create new segment for that thing, for better solution
-                list.moveUp(seg);
-                //move segment up
-            } else if (event.type === 0) {
-                list.remove(seg);
+            } else if (event.type <= 1) {
+                if (seg.alive) {
+                    seg.alive = false;
+                    list.remove(seg);
+                }
+                //TODO: create new segment for that thing, for better solution
+                // if (event.type === 1) list.moveUp(seg);
             }
         }
     },
@@ -150,6 +152,8 @@ function Segment(x1, y1, x2, y2) {
      * @type {number}
      */
     this.loopsCounter = 0;
+
+    this.alive = false;
 };
 
 Segment.prototype = {
@@ -161,8 +165,7 @@ Segment.prototype = {
         this.prev = null;
         this.prev = null;
         this.owner = null;
-        this.djuParent = this;
-        this.djuRank = 0;
+        this.alive = false;
     },
 
     update: function (x1, y1, x2, y2) {
@@ -219,81 +222,9 @@ Segment.prototype = {
         return false;
     },
 
-    addEdge: function(otherSegment) {
-        var p1 = this.djup(), p2 = otherSegment.djup();
-        if (p1 !== p2) {
-            p2.inboundCounter++;
-            p1.nextEdges.push(p2);
-        }
-    },
-
-    /**
-     * called only from djoin
-     * @param otherSegment
-     */
-    addEdges: function (otherSegment) {
-        var i, n;
-
-        n = this.nextEdges;
-        for (i=0; i<n;i++) {
-            while (this.nextEdges[i] && this.nextEdges[i].djup() === this) {
-                if (otherSegment.nextEdges.length > 0) {
-                    this.nextEdges[i] = otherSegment.nextEdges.pop();
-                } else {
-                    this.nextEdges[i] = null;
-                    this.loopsCounter++;
-                }
-            }
-        }
-
-        n = otherSegment.nextEdges;
-        for (i = 0; i < n; i++) {
-            var p = otherSegment.nextEdges[i];
-            if (p) {
-                p = p.djup();
-                if (p !== this) {
-                    this.nextEdges.push(p);
-                    this.inboundCounter++;
-                }
-            }
-        }
-    },
-
-    djup: function () {
-        var x = this;
-        while (x !== x.djuParent) {
-            x = x.djuParent;
-        }
-        var y = this;
-        while (y.djuParent !== x) {
-            var z = y.djuParent;
-            y.djuParent = x;
-            y = z;
-        }
-        return this.djuParent;
-    },
-    /**
-     * together forever^W for this calculation
-     *
-     * @param seg
-     */
-    djoin: function (seg) {
-        var p1 = this.djup(), p2 = seg.djup();
-        if (p1 === p2) {
-            return;
-        }
-        //TODO: add stuff with less edges to stuff with more edges
-        if (p1.djuRank < p2.djuRank) {
-            p1.djuParent = p2;
-            p2.addEdges(p1);
-        } else if (p1.djuRank > p2.djuRank) {
-            p2.djuParent = p1;
-            p1.addEdges(p2);
-        } else {
-            p1.djuParent = p2;
-            p2.djuRank++;
-            p2.addEdges(p1);
-        }
+    addEdge: function (otherSegment) {
+        this.inboundCounter++;
+        this.nextEdges.push(p2);
     }
 };
 
