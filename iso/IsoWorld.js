@@ -1,5 +1,6 @@
 var PIXI            = require("pixi.js");
 var SpatialHash = require("./SpatialHash");
+var Scanline = require("./Scanline");
 
 
 var IsoWorld = function(params)
