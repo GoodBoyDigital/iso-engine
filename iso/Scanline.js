@@ -15,10 +15,17 @@ Scanline.prototype = {
     /**
      * accepts array of children, each of them MUST have a "segment" component
      *
-     * @param childs
      */
-    process(sortChildren) {
-        this._init(sortChildren);
+    process(input, output) {
+        this._init(input);
+        this._scanLine();
+        this._topSort();
+        output.length = 0;
+        for (var i = 0; i < this.queue.length; i++) {
+            var owner = this.queue[i].owner;
+            owner.scanlinePos = i + 1;
+            output.push(owner);
+        }
         this._clean();
     },
 
@@ -73,13 +80,49 @@ Scanline.prototype = {
                 // if (event.type === 1) list.moveUp(seg);
             }
         }
+
+        if (list.head !== null) {
+            console.log("Scanline Assertion: list have some elements after scan")
+        }
     },
 
     _topSort() {
         var queue = this.queue;
-
-
         queue.length = 0;
+        var segments = this.segments;
+
+        for (var i = 0; i < segments.length; i++) {
+            if (segments[i].inboundCounter === 0) {
+                queue.push(segments[i]);
+                segments[i].alive = true;
+            }
+        }
+
+        for (var qcur = 0; qcur < queue.length; qcur++) {
+            var next = queue[qcur].nextEdges;
+            for (var i = 0; i < next.length; i++) {
+                if (next[i].inboundCounter > 0) {
+                    next[i].inboundCounter--;
+                    continue;
+                }
+                if (next[i].alive) {
+                    //WTF CYCLE
+                    console.log("Scanline Assertion: topsort found a cycle");
+                    continue;
+                }
+                next[i].alive = true;
+                queue.push(next[i]);
+            }
+        }
+
+        if (queue.length < segments.length) {
+            console.log("Scanline Assertion: some segments were not accounted for");
+            for (var i = 0; i < segments.length; i++) {
+                if (!segments[i].alive) {
+                    queue.push(segments[i]);
+                }
+            }
+        }
     },
 
     _clean() {
@@ -88,6 +131,7 @@ Scanline.prototype = {
             segments[i].clear();
         }
         this.segments.length = 0;
+        this.queue.length = 0;
     }
 };
 
