@@ -22,6 +22,12 @@ var IsoWorld = function(params)
 
     this.camera = params.camera || {x:0, y:0, zoom:1};
 
+    /**
+     * required for correct sorting
+     * @type {number}
+     */
+    this.tileSize = params.tileSize || 1;
+
     this.isoChildren = [];
 
     this.visualChildren = [];
@@ -144,7 +150,7 @@ var sorty = function(a, b){
 
     /// SORTING FUNCTION HELP???
 
-    return ( (a.view.position.y)  + a.depth) - ( (b.view.position.y) + b.depth );
+    return ( a.sortY  + a.depth) - ( b.sortY + b.depth );
 }
 
 var sortyx = function(a, b){
@@ -189,10 +195,23 @@ IsoWorld.prototype.updateItem = function(iso)
 
     //Cartesian to isometric:
     var scale = 0.70;
-    item.view.position.x = (item.position.x - item.position.y) * scale;
-    item.view.position.y = ((item.position.x + item.position.y) / 2) * scale;
 
-    item.view.position.y += item.position.z;// * 0.5;
+    var u = item.position.x, v = item.position.y;
+    var tileU = Math.floor(u / this.tileSize), tileV = Math.floor(v / this.tileSize);
+    var fracU = u / this.tileSize - tileU, fracV = v / this.tileSize - tileV;
+
+    var t = (fracU + fracV)/2;
+    var t1 = t - Math.min(fracU, fracV);
+    var t2 = t + Math.min(1.0-fracU, 1.0 - fracV);
+
+    //relative position between top edge of tile and bottom edge of tile
+    var alpha = (t2 > t1+1e-3 ) ? (t-t1)/(t2-t1) : 0;
+
+    item.view.position.x = (u-v) * scale;
+    item.view.position.y = ((u+v) / 2) * scale;
+    item.sortY = tileU + tileV + alpha;
+
+    item.view.position.y += item.position.z;
 
     item._depth = (item.view.position.x + item.view.position.y) + item.depth;
 

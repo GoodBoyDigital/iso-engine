@@ -24,7 +24,7 @@ Camera.prototype.update = function(){
 var camera = new Camera();
 
 var stage = new PIXI.Container();
-var world = new iso.IsoWorld({camera:camera});
+var world = new iso.IsoWorld({camera:camera, tileSize: 256});
 
 var createFloor = function(){
 
@@ -43,7 +43,7 @@ var createFence = function(){
 	for (var i = 0; i < 4; i++) {
 
 		var sprite = new PIXI.Sprite.fromImage('/img/wall_fence.png');
-		sprite.anchor.set(0, 1);
+		sprite.anchor.set(0.5, 1);
 		sprite.scale.y = 0.2;
 		var wall = new iso.IsoObject(sprite);
 		wall.projectWall = true;
@@ -53,19 +53,19 @@ var createFence = function(){
 		walls.push(wall);
 	}
 
-	walls[0].position.x = 256;
+	walls[0].position.x = 256+128;
 	walls[0].position.y = 256;
 
-	walls[1].position.x = 256 + 256;
-	walls[1].position.y = 256;
+	walls[1].position.x = 256;
+	walls[1].position.y = 256 + 128;
 	walls[1].rotation = Math.PI/2;
 
-	walls[2].position.x = 256 + 256;
+	walls[2].position.x = 256 + 128;
 	walls[2].position.y = 256 + 256;
 	walls[2].rotation = Math.PI;
 
-	walls[3].position.x = 256;
-	walls[3].position.y = 256 + 256;
+	walls[3].position.x = 256 + 256;
+	walls[3].position.y = 256 + 128;
 	walls[3].rotation = (Math.PI/2) * 3;
 }
 
