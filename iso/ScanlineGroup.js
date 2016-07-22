@@ -84,6 +84,7 @@ ScanlineGroup.prototype.renderWebGL = function (parentContainer, renderer) {
     for (var i = 0; i < this.cutsNum; i++) {
         this.cutsPool[i].clear();
     }
+    this.cutsNum = 0;
 
     var list = this.scanline.queue;
     for (var j = 0; j < list.length; j++) {

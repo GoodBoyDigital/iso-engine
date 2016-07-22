@@ -120,6 +120,7 @@ Scanline.prototype = {
                 //cut
                 //list.moveUp(seg);
                 if (seg.alive && seg2.alive) {
+                    //TODO: make cut priority
                     if (seg.cutLen(event.x) < seg2.cutLen(event.x)) {
                         this._remove(seg);
                         var cut = seg.cut(event.x, this._segCreate());
