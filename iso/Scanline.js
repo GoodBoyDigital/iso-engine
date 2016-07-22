@@ -107,10 +107,18 @@ Scanline.prototype = {
                 //cut
                 //list.moveUp(seg);
                 if (seg.alive && seg2.alive) {
-                    this._remove(seg);
-                    var cut = seg.cut(event.x, this._segCreate());
-                    var lb = tree.lowerBound(cut, seg2);
-                    this._insertAfter(cut, lb);
+                    if (seg.cutLen(event.x) < seg2.cutLen(event.x)) {
+                        this._remove(seg);
+                        var cut = seg.cut(event.x, this._segCreate());
+                        var lb = tree.lowerBound(cut, seg2);
+                        this._insertAfter(cut, lb);
+                    } else {
+                        this._remove(seg2);
+                        var cut = seg2.cut(event.x, this._segCreate());
+                        //TODO: go down instead up?
+                        var lb = tree.lowerBound(cut, null);
+                        this._insertAfter(cut, lb);
+                    }
                 }
             }
             this._eventDestroy(event);
@@ -340,6 +348,10 @@ Segment.prototype = {
         return seg;
     },
 
+    cutLen: function(x) {
+        return Math.min(x - this.x1, this.x2 - x);
+    },
+
     checkBest(child) {
         if (this.bestChild === null ||
             this.bestChild.len < child.len) {
@@ -348,7 +360,9 @@ Segment.prototype = {
     },
 
     findBestChild() {
-        this.checkBest(this);
+        var tail = this.childTail;
+        tail.len = tail.x2 - tail.x1;
+        this.checkBest(tail);
         return this.bestChild;
     },
 
