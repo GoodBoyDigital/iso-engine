@@ -59,6 +59,7 @@ Scanline.prototype = {
         if (seg.next) {
             x = seg.intersect(seg.next);
             if (x !== false) {
+                //TODO: remember that segment will be cut there, do not add intersections after that point
                 this.heap.push(this._eventCreate(x, 1, seg, seg.next));
             }
         }

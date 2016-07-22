@@ -40,7 +40,7 @@ var createFence = function(){
 
 	var walls = [];
 
-	for (var i = 0; i < 11; i++) {
+	for (var i = 0; i < 12; i++) {
 
 		var sprite = new PIXI.Sprite.fromImage('/img/wall_fence.png');
 		sprite.anchor.set(0.5, 1);
@@ -95,6 +95,11 @@ var createFence = function(){
 	walls[10].position.x = 256 + 192;
 	walls[10].position.y = 512 + 128;
 	walls[10].rotation = Math.PI/2;
+
+	//pair to walls[4]
+	walls[11].position.x = 256 + 128;
+	walls[11].position.y = 256 + 128;
+	walls[11].rotation = 0;
 }
 
 var createDude = function(){

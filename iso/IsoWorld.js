@@ -1,6 +1,7 @@
 var PIXI = require("pixi.js");
+var PIXI_DISPLAY = require("pixi-display");
 var SpatialHash = require("./SpatialHash");
-var Scanline = require("./Scanline");
+var ScanlineGroup = require("./ScanlineGroup");
 
 
 var IsoWorld = function (params) {
@@ -8,9 +9,15 @@ var IsoWorld = function (params) {
 
     this.innerContainer = new PIXI.Container();
 
-    this.scanline = new Scanline();
+    this.displayList = new PIXI.DisplayList();
 
-    this.staticGroup = new SpatialHash()
+    this.floorGroup = new PIXI.DisplayGroup(-2, function(elem) {
+        elem.zOrder = elem.worldTransform.ty;
+    });
+
+    this.wallGroup = new ScanlineGroup(-1);
+
+    this.staticGroup = new SpatialHash();
     this.dynamicGroup = [];
 
     this.activeItemsContainer = new PIXI.Container();
@@ -33,16 +40,16 @@ var IsoWorld = function (params) {
     this.isoChildren = [];
 
     this.visualChildren = [];
-}
+};
 
 IsoWorld.prototype = Object.create(PIXI.Container.prototype);
 
 IsoWorld.prototype.update = function () {
-}
+};
 
 IsoWorld.prototype.collectVisibleItems = function () {
 
-}
+};
 
 IsoWorld.prototype.updateTransform = function () {
 
@@ -57,24 +64,24 @@ IsoWorld.prototype.updateTransform = function () {
 
     //need this temporarily
 
-    var scale = 0.7
+    var scale = 0.7;
     var cx = (this.camera.x - this.camera.y) * scale;
     var cy = ((this.camera.x + this.camera.y) / 2) * scale;
 
-    var left = cx - this.camera.viewWidth / 2
-    var right = cx + this.camera.viewWidth / 2
+    var left = cx - this.camera.viewWidth / 2;
+    var right = cx + this.camera.viewWidth / 2;
 
-    var top = cy - this.camera.viewHeight / 2
-    var bottom = cy + this.camera.viewHeight / 2
+    var top = cy - this.camera.viewHeight / 2;
+    var bottom = cy + this.camera.viewHeight / 2;
 
     var staticItems = this.staticGroup.retrieve(new PIXI.Rectangle(left, top, this.camera.viewWidth, this.camera.viewHeight));
     var visualChildren = staticItems;//this.dynamicGroup);
 
     // this.dynamicGroup.sort(sortyx);
 
-    var count = 0;
+    var i, count = 0;
 
-    for (var i = 0; i < this.dynamicGroup.length; i++) {
+    for (i = 0; i < this.dynamicGroup.length; i++) {
         var item = this.dynamicGroup[i];
         var pos = (item.position.x - item.position.y) * 0.70;
 
@@ -93,33 +100,22 @@ IsoWorld.prototype.updateTransform = function () {
             }
         }
     }
-    ;
 
     var children = [];
     // merge items...
 
-    for (var i = 0; i < visualChildren.length; i++) {
+    for (i = 0; i < visualChildren.length; i++) {
 
         children[i] = visualChildren[i].view;
     }
 
     this.activeItemsContainer.children = children;
 
-    //i need this copied stuff for scanline
-
-    this.containerUpdateTransform();
-
-    for (var i = 0; i < visualChildren.length; i++) {
+    for (i = 0; i < visualChildren.length; i++) {
 
         this.updateItem(visualChildren[i]);
-
-    }
-
-    this.scanline.process(visualChildren, visualChildren);
-
-    for (var i = 0; i < visualChildren.length; i++) {
-
         children[i] = visualChildren[i].view;
+
     }
 
     this.camera.update();
@@ -136,23 +132,27 @@ IsoWorld.prototype.updateTransform = function () {
 
 
     this.containerUpdateTransform();
-}
+
+    if (this.displayList) {
+        this.displayList.update(this);
+    }
+};
 
 IsoWorld.prototype.add = function (iso) {
 
-}
+};
 
 var sorty = function (a, b) {
 
     /// SORTING FUNCTION HELP???
 
     return ( a.sortY + a.depth) - ( b.sortY + b.depth );
-}
+};
 
 var sortyx = function (a, b) {
 
     return a.position.x - b.position.x;
-}
+};
 
 IsoWorld.prototype.clear = function () {
     for (var i = 0; i < this.isoChildren.length; i++) {
@@ -164,10 +164,9 @@ IsoWorld.prototype.clear = function () {
     this.staticGroup.clear();
     this.dynamicGroup.length = 0;
     this.isoChildren.length = 0;
-}
+};
 
 IsoWorld.prototype.add = function (iso) {
-    iso.segment = new Scanline.Segment();
     if (!iso.dynamic) {
         this.updateItem(iso);
         this.staticGroup.add(iso);
@@ -180,7 +179,7 @@ IsoWorld.prototype.add = function (iso) {
     iso.view.parent = this.activeItemsContainer;
     this.isoChildren.push(iso);
     //this.activeItemsContainer.addChild(iso.view);
-}
+};
 
 IsoWorld.prototype.updateItem = function (iso) {
     var item = iso;
@@ -199,23 +198,10 @@ IsoWorld.prototype.updateItem = function (iso) {
     spr = spr && spr.children[1];
     spr = spr && spr.children[0];
 
-    if (spr && spr.calculateVertices && item.projectWall) {
-        spr.calculateVertices();
-        var vert = spr.vertexData;
-
-        //ivan: i just need some adjustment, i really need wall coordinates there, @mat please fix it!
-        var x1 = vert[6], x2 = vert[4];
-        var y1 = vert[7], y2 = vert[5];
-        if (item.projectDude) {
-            item.segment.update((x1+x2)/2 - 1, (y1+y2) / 2, (x1+x2)/2 + 1, (y1+y2) / 2);
-        } else {
-            //WALL
-            item.segment.update(x1, y1, x2, y2);
-        }
+    if (item.projectWall) {
+        spr.displayGroup = this.wallGroup;
     } else {
-        //floor
-        var b = item.view.getBounds(true);
-        item.segment.update(b.x, 0, b.x + b.width, 0);
+        spr.displayGroup = this.floorGroup;
     }
 
     item._depth = (item.view.position.x + item.view.position.y) + item.depth;
@@ -237,7 +223,7 @@ IsoWorld.prototype.updateItem = function (iso) {
     }
 
 
-}
+};
 
 IsoWorld.prototype.remove = function (iso) {
     // this.hash.remove(iso.view);
@@ -255,6 +241,6 @@ IsoWorld.prototype.remove = function (iso) {
     }
 
     //  this.activeItemsContainer.removeChild(iso.view);
-}
+};
 
 module.exports = IsoWorld;
