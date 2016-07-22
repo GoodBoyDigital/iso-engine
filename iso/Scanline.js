@@ -3,10 +3,16 @@ var PIXI = require("pixi.js");
 function Scanline() {
     //only pooled stuff here is allowed
     this.segments = [];
+    this.segOutput = [];
     this.heap = new EventHeap();
     this.tree = new List();
     this.queue = [];
+    //events are taken and returned into pool
     this.eventPool = [];
+    //segment pool is different: we dont know when segment will be freed,
+    // so we keep all segments there and remember how many were taken
+    this.segPool = [];
+    this.segPoolNum = 0;
 };
 
 var EPS = 1e-5;
@@ -16,35 +22,21 @@ Scanline.prototype = {
      * accepts array of children, each of them MUST have a "segment" component
      *
      */
-    process(input, output) {
+    process: function(input, output) {
         this._init(input);
         this._scanLine();
         this._topSort();
+        this._chooseBest();
         output.length = 0;
-        for (var i = 0; i < this.queue.length; i++) {
-            var owner = this.queue[i].owner;
+        for (var i = 0; i < this.segOutput.length; i++) {
+            var owner = this.segOutput[i].owner;
             owner.scanlinePos = i + 1;
             output.push(owner);
         }
         this._clean();
     },
 
-    _eventCreate(x, type, seg) {
-        var p = this.eventPool.pop();
-        if (!p) {
-            p = new Event(type, x, seg);
-        } else {
-            p.set(type, x, seg);
-        }
-        return p;
-    },
-
-    _eventDestroy(event) {
-        event.clear();
-        this.eventPool.push(event);
-    },
-
-    _init(childs) {
+    _init: function(childs) {
         var segments = this.segments;
         for (var i = 0; i < childs.length; i++) {
             var seg = childs[i].segment;
@@ -58,7 +50,42 @@ Scanline.prototype = {
         }
     },
 
-    _scanLine() {
+    _insertAfter: function(seg, lb) {
+        var tree = this.tree;
+        tree.insertAfter(seg, lb);
+        seg.alive = true;
+        var x;
+
+        if (seg.next) {
+            x = seg.intersect(seg.next);
+            if (x !== false) {
+                this.heap.push(this._eventCreate(x, 1, seg, seg.next));
+            }
+        }
+
+        if (seg.prev) {
+            x = seg.prev.intersect(seg);
+            if (x !== false) {
+                this.heap.push(this._eventCreate(x, 1, seg.prev, seg));
+            }
+        }
+    },
+
+    _remove: function(seg) {
+        var tree = this.tree;
+
+        if (seg.prev && seg.next) {
+            x = seg.prev.intersect(seg.next);
+            if (x !== false) {
+                this.heap.push(this._eventCreate(x, 1, seg.prev, seg.next));
+            }
+        }
+
+        seg.alive = false;
+        tree.remove(seg);
+    },
+
+    _scanLine: function() {
         var heap = this.heap;
         var tree = this.tree;
         while (!heap.isEmpty()) {
@@ -66,23 +93,25 @@ Scanline.prototype = {
             var seg = event.seg;
             if (event.type === 2) {
                 //insert new segment
-                seg.alive = true;
                 var lb = tree.lowerBound(seg);
-                if (lb !== null) {
-                    var x = lb.intersect(seg);
-                    if (x !== false) {
-                        //for now LETS JUST KILL ONE OF THEM WITH FIRE
-                        this.heap.push(this._eventCreate(x, 1, lb));
-                    }
-                }
-                tree.insertAfter(lb, seg);
-            } else if (event.type <= 1) {
+                this._insertAfter(seg, lb);
+            } else if (event.type == 0) {
+                //remove last segment tail
+                seg = seg.childTail;
                 if (seg.alive) {
                     seg.alive = false;
-                    tree.remove(seg);
+                    this._remove(seg);
                 }
-                //TODO: create new segment for that thing, for better solution
-                // if (event.type === 1) list.moveUp(seg);
+            } else if (event.type === 1) {
+                var seg2 = event.seg2;
+                //cut
+                //list.moveUp(seg);
+                if (seg.alive && seg2.alive) {
+                    this._remove(seg);
+                    var cut = seg.cut(event.x, this._segCreate());
+                    var lb = tree.lowerBound(cut, seg2);
+                    this._insertAfter(cut, lb);
+                }
             }
             this._eventDestroy(event);
         }
@@ -92,15 +121,24 @@ Scanline.prototype = {
         }
     },
 
-    _topSort() {
+    _topSort: function() {
         var queue = this.queue;
         queue.length = 0;
         var segments = this.segments;
+        var segPool = this.segPool;
+        var segPoolLen = this.segPoolNum;
 
+        //push into queue both segments and pooled stuff
         for (var i = 0; i < segments.length; i++) {
             if (segments[i].inboundCounter === 0) {
                 queue.push(segments[i]);
                 segments[i].alive = true;
+            }
+        }
+        for (var i = 0; i < segPoolLen; i++) {
+            if (segPool[i].inboundCounter === 0) {
+                queue.push(segPool[i]);
+                segPool[i].alive = true;
             }
         }
 
@@ -123,23 +161,82 @@ Scanline.prototype = {
             }
         }
 
-        if (queue.length < segments.length) {
+        if (queue.length < segments.length + segPoolLen) {
             console.log("Scanline Assertion: some segments were not accounted for");
             for (var i = 0; i < segments.length; i++) {
                 if (!segments[i].alive) {
                     queue.push(segments[i]);
                 }
             }
+            for (var i = 0; i < segPoolLen.length; i++) {
+                if (!segPool[i].alive) {
+                    queue.push(segPool[i]);
+                }
+            }
         }
     },
 
-    _clean() {
+    _chooseBest: function() {
+        var segments = this.segments;
+        for (var i = 0; i < segments.length; i++) {
+            segments[i].findBestChild();
+        }
+
+        var output = this.segOutput;
+        var queue = this.queue;
+        for (var i=0; i < queue.length;i++) {
+            var seg = queue[i];
+            var head = seg.childHead;
+            if (head.bestChild === seg) {
+                output.push(head);
+            }
+        }
+    },
+
+    _clean: function() {
         var segments = this.segments;
         for (var i = 0; i < segments.length; i++) {
             segments[i].clear();
         }
+        this.segOutput.length = 0;
         this.segments.length = 0;
         this.queue.length = 0;
+
+        //free all segments in pool
+        while (this.segPoolNum > 0) {
+            this.segPool[--this.segPoolNum].clear();
+        }
+    },
+    //POOLS
+    _segCreate: function() {
+        //segment pool
+        var s = this.segPool[this.segPoolNum];
+        if (!s) {
+            s = new Segment();
+            this.segPool.push(s);
+        }
+        this.segPoolNum++;
+        return s;
+    },
+
+    _segDestroy: function(s) {
+        s.clear();
+        this.segPool.push(s);
+    },
+
+    _eventCreate: function(x, type, seg, seg2) {
+        var p = this.eventPool.pop();
+        if (!p) {
+            p = new Event(type, x, seg, seg2);
+        } else {
+            p.set(type, x, seg, seg2);
+        }
+        return p;
+    },
+
+    _eventDestroy: function(event) {
+        event.clear();
+        this.eventPool.push(event);
     }
 };
 
@@ -199,25 +296,60 @@ function Segment(x1, y1, x2, y2) {
      */
     this.inboundCounter = 0;
 
-    /**
-     * loops counter
-     * @type {number}
-     */
-    this.loopsCounter = 0;
-
     this.alive = false;
+
+    this.childHead = this;
+
+    this.childTail = this;
+
+    this.bestChild = null;
 };
 
 Segment.prototype = {
     clear: function () {
         this.nextEdges.length = 0;
         this.inboundCounter = 0;
-        this.loopsCounter = 0;
+
+        this.childHead = this;
+        this.childTail = this;
+
         this.next = null;
-        this.prev = null;
         this.prev = null;
         this.owner = null;
         this.alive = false;
+        this.len = 0;
+        this.bestChild = null;
+    },
+
+    cut: function(x, seg) {
+        var head = this.childHead;
+        seg.childHead = head;
+        head.childTail = seg;
+
+        this.len = x - this.x1;
+
+        head.checkBest(this);
+
+        seg._k = this._k;
+        seg._b = this._b;
+        seg.x1 = x;
+        seg.y1 = x * this._k + this._b;
+        seg.x2 = this.x2;
+        seg.y2 = this.y2;
+        seg.owner = this.owner;
+        return seg;
+    },
+
+    checkBest(child) {
+        if (this.bestChild === null ||
+            this.bestChild.len < child.len) {
+            this.bestChild = child;
+        }
+    },
+
+    findBestChild() {
+        this.checkBest(this);
+        return this.bestChild;
     },
 
     update: function (x1, y1, x2, y2) {
@@ -291,16 +423,20 @@ function List() {
 }
 
 List.prototype = {
-    lowerBound: function (elem) {
+    lowerBound: function (elem, from) {
         var t = this.head;
         var ans = null;
+        if (from) {
+            ans = from;
+            t = from.next;
+        }
         while (t !== null && t.below(elem)) {
             ans = t;
             t = t.next;
         }
         return ans;
     },
-    insertAfter: function (where, elem) {
+    insertAfter: function (elem, where) {
         if (where === null) {
             elem.next = this.head;
             elem.prev = null;
@@ -345,20 +481,22 @@ List.prototype = {
     }
 };
 
-function Event(type, x, seg) {
+function Event(type, x, seg, seg2) {
     this.type = type;
     this.x = x;
     this.seg = seg;
+    this.seg2 = seg2;
 };
 
 Event.prototype = {
     clear: function () {
         this.seg = null;
     },
-    set: function (type, x, seg) {
+    set: function (type, x, seg, seg2) {
         this.type = type;
         this.x = x;
         this.seg = seg;
+        this.seg2 = seg2;
     }
 };
 

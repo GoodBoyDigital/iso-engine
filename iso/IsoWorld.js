@@ -206,13 +206,11 @@ IsoWorld.prototype.updateItem = function (iso) {
         //ivan: i just need some adjustment, i really need wall coordinates there, @mat please fix it!
         var x1 = vert[6], x2 = vert[4];
         var y1 = vert[7], y2 = vert[5];
-        var dx = x2 - x1;
-        var dy = y2 - y1;
         if (item.projectDude) {
             item.segment.update((x1+x2)/2 - 1, (y1+y2) / 2, (x1+x2)/2 + 1, (y1+y2) / 2);
         } else {
             //WALL
-            item.segment.update(x1 + dx * 0.01, y1 + dy * 0.05, x2 - dx * 0.01, y2 - dy * 0.05);
+            item.segment.update(x1, y1, x2, y2);
         }
     } else {
         //floor
