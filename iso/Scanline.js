@@ -110,14 +110,12 @@ Scanline.prototype = {
                     if (seg.cutLen(event.x) < seg2.cutLen(event.x)) {
                         this._remove(seg);
                         var cut = seg.cut(event.x, this._segCreate());
-                        var lb = tree.lowerBound(cut, seg2);
-                        this._insertAfter(cut, lb);
+                        this.heap.push(this._eventCreate(cut.x1, 2, cut));
                     } else {
                         this._remove(seg2);
                         var cut = seg2.cut(event.x, this._segCreate());
+                        this.heap.push(this._eventCreate(cut.x1, 2, cut));
                         //TODO: go down instead up?
-                        var lb = tree.lowerBound(cut, null);
-                        this._insertAfter(cut, lb);
                     }
                 }
             }
@@ -334,14 +332,16 @@ Segment.prototype = {
         seg.childHead = head;
         head.childTail = seg;
 
+        var x2 = x + EPS;
+
         this.len = x - this.x1;
 
         head.checkBest(this);
 
         seg._k = this._k;
         seg._b = this._b;
-        seg.x1 = x;
-        seg.y1 = x * this._k + this._b;
+        seg.x1 = x2;
+        seg.y1 = x2 * this._k + this._b;
         seg.x2 = this.x2;
         seg.y2 = this.y2;
         seg.owner = this.owner;
