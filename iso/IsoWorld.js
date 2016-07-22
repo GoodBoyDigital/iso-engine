@@ -15,7 +15,7 @@ var IsoWorld = function (params) {
         elem.zOrder = elem.worldTransform.ty;
     });
 
-    this.wallGroup = new ScanlineGroup(-1);
+    this.wallGroup = new ScanlineGroup(-1, 2);
 
     this.staticGroup = new SpatialHash();
     this.dynamicGroup = [];

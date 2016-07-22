@@ -36,6 +36,18 @@ Scanline.prototype = {
         this._clean();
     },
 
+    /**
+     * V2 of process
+     * @param input
+     */
+    processV2: function(input) {
+        this._clean();
+        this._init(input);
+        this._scanLine();
+        this._topSort();
+        this._chooseBest();
+    },
+
     _init: function(childs) {
         var segments = this.segments;
         for (var i = 0; i < childs.length; i++) {
@@ -148,6 +160,8 @@ Scanline.prototype = {
                 segPool[i].alive = true;
             }
         }
+
+        //TODO: choose one with same baseTexture first, optimize by atlas
 
         for (var qcur = 0; qcur < queue.length; qcur++) {
             var next = queue[qcur].nextEdges;
@@ -265,6 +279,7 @@ function Segment(x1, y1, x2, y2) {
     this.y2 = 0;
     this._k = 0;
     this._b = 0;
+    this.rev = false;
     this.update(x1 || 0, y1 || 0, x2 || 0, y2 || 0);
 
     /**
@@ -373,11 +388,13 @@ Segment.prototype = {
             this.y1 = y1;
             this.x2 = x2;
             this.y2 = y2;
+            this.rev = false;
         } else {
             this.x1 = x2;
             this.x2 = x1;
             this.y1 = y2;
             this.y2 = y1;
+            this.rev = true;
         }
 
         this._k = (this.y2 - this.y1) / (this.x2 - this.x1);
