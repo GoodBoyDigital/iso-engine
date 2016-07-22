@@ -74,6 +74,7 @@ var createDude = function(){
 		sprite.anchor.set(0.5, 1);
 		var dude = new iso.IsoObject(sprite);
 		dude.projectWall = true;
+		dude.projectDude = true;
 
 	world.add(dude);
 

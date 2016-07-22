@@ -30,7 +30,13 @@ Scanline.prototype = {
     },
 
     _eventCreate(x, type, seg) {
-        return this.eventPool.pop() || new Event(x, type, seg);
+        var p = this.eventPool.pop();
+        if (!p) {
+            p = new Event(type, x, seg);
+        } else {
+            p.set(type, x, seg);
+        }
+        return p;
     },
 
     _eventDestroy(event) {
@@ -54,34 +60,34 @@ Scanline.prototype = {
 
     _scanLine() {
         var heap = this.heap;
-        var list = this.list;
+        var tree = this.tree;
         while (!heap.isEmpty()) {
             var event = heap.pop();
             var seg = event.seg;
             if (event.type === 2) {
                 //insert new segment
                 seg.alive = true;
-                var lb = list.lowerBound(seg);
+                var lb = tree.lowerBound(seg);
                 if (lb !== null) {
                     var x = lb.intersect(seg);
-                    if (x !== null) {
+                    if (x !== false) {
                         //for now LETS JUST KILL ONE OF THEM WITH FIRE
                         this.heap.push(this._eventCreate(x, 1, lb));
                     }
-                    lb.nextEdges.push(seg);
                 }
-                list.insertAfter(lb, seg);
+                tree.insertAfter(lb, seg);
             } else if (event.type <= 1) {
                 if (seg.alive) {
                     seg.alive = false;
-                    list.remove(seg);
+                    tree.remove(seg);
                 }
                 //TODO: create new segment for that thing, for better solution
                 // if (event.type === 1) list.moveUp(seg);
             }
+            this._eventDestroy(event);
         }
 
-        if (list.head !== null) {
+        if (tree.head !== null) {
             console.log("Scanline Assertion: list have some elements after scan")
         }
     },
@@ -103,6 +109,8 @@ Scanline.prototype = {
             for (var i = 0; i < next.length; i++) {
                 if (next[i].inboundCounter > 0) {
                     next[i].inboundCounter--;
+                }
+                if (next[i].inboundCounter !== 0) {
                     continue;
                 }
                 if (next[i].alive) {
@@ -226,7 +234,7 @@ Segment.prototype = {
         }
 
         this._k = (this.y2 - this.y1) / (this.x2 - this.x1);
-        this._b = this.x1 - this._k * this.y1;
+        this._b = this.y1 - this._k * this.x1;
     },
 
     /**
@@ -235,7 +243,7 @@ Segment.prototype = {
      * @param seg2 {Segment} another segment
      */
     intersect: function (seg2) {
-        if (this._k !== seg2._k) {
+        if (this._k === seg2._k) {
             return false;
         }
         var x = (seg2._b - this._b) / (this._k - seg2._k);
@@ -267,8 +275,8 @@ Segment.prototype = {
     },
 
     addEdge: function (otherSegment) {
-        this.inboundCounter++;
-        this.nextEdges.push(p2);
+        otherSegment.inboundCounter++;
+        this.nextEdges.push(otherSegment);
     }
 };
 
@@ -286,7 +294,7 @@ List.prototype = {
     lowerBound: function (elem) {
         var t = this.head;
         var ans = null;
-        if (t !== null && t.below(elem)) {
+        while (t !== null && t.below(elem)) {
             ans = t;
             t = t.next;
         }
@@ -321,7 +329,7 @@ List.prototype = {
         }
         if (elem.prev) {
             elem.prev.next = elem.next;
-            elem.prev.nextEdges.push(elem.next);
+            // elem.prev.addEdge(elem);
         } else {
             this.head = elem.next;
         }
@@ -346,6 +354,11 @@ function Event(type, x, seg) {
 Event.prototype = {
     clear: function () {
         this.seg = null;
+    },
+    set: function (type, x, seg) {
+        this.type = type;
+        this.x = x;
+        this.seg = seg;
     }
 };
 
@@ -375,7 +388,7 @@ EventHeap.prototype = {
     },
 
     isEmpty: function () {
-        return this.arr.length > 1;
+        return this.arr.length === 1;
     },
 
     pop: function () {
@@ -396,8 +409,8 @@ EventHeap.prototype = {
                 arr[right].x === arr[min].x && arr[right].type < arr[min].type)) {
                 min = right;
             }
-            if (arr[num].x < arr[min].x ||
-                arr[num].x === arr[min].x && arr[num].type < arr[min].type) {
+            if (arr[min].x < arr[num].x ||
+                arr[min].x === arr[num].x && arr[min].type < arr[num].type) {
                 var t = arr[num];
                 arr[num] = arr[min];
                 arr[min] = t;
